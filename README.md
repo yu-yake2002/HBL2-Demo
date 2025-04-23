@@ -1,13 +1,15 @@
-# HBL2 Demo
+# HBL2 AMU Demo
 
-演示如何集成HBL2到自己的运算单元
+A Simple AMU using HBL2 as package.
 
 ```BASH
 git submodule update --init --recursive
 make test-top
 ```
 
-TODO:
+SIMPLE TEST:
 
-- 代码整理
-- 功能函数封装
+- Init the register
+- Store the data back to HBL2
+- Load the data from HBL2
+- Check the register value
