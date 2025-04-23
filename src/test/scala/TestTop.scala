@@ -17,6 +17,7 @@ import coupledL2._
 
 import scala.collection.mutable.ArrayBuffer
 
+import hbl2demo.RegInfo
 
 case object L2BanksKey extends Field[Int]
 case object L3BanksKey extends Field[Int]
@@ -54,11 +55,30 @@ object baseConfigAME {
   }
 }
 
+/*
+// CUATION: no explcit IO in lazy module
+
+class TestTopIO(implicit p: Parameters) extends Bundle {
+  val init_fire = Input(Bool())
+  val ld_fire   = Input(Bool())
+  val st_fire   = Input(Bool())
+  val init_done = Output(Bool())
+  val ld_done   = Output(Bool())
+  val st_done   = Output(Bool())
+  
+  val reg_in  = Input(new RegInfo)
+  val reg_out = Output(new RegInfo)
+
+}
+*/
+
 class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
 
   override lazy val desiredName: String = "TestTop"
   val delayFactor = 0.2
   val cacheParams = p(L2ParamKey)
+
+  // val io = IO(new TestTopIO)
 
   def createClientNode(name: String, sources: Int) = {
     val masterNode = TLClientNode(Seq(
@@ -223,10 +243,25 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
     l2.module.io.debugTopDown <> DontCare
     l2.module.io.l2_tlb_req <> DontCare
     l2.module.io.matrixDataOut512L2:= DontCare
+
     // For matrix get , l2 return data
     val matrix_data_out = amu.module.io.matrix_data_in
     //IO(Vec(l2_banks, DecoupledIO(new MatrixDataBundle())))
     matrix_data_out <> l2.module.io.matrixDataOut512L2
+
+    /*
+    // connect amu & testtop
+    amu.module.io.init_fire := io.init_fire
+    amu.module.io.ld_fire   := io.ld_fire
+    amu.module.io.st_fire   := io.st_fire
+
+    io.init_done := amu.module.io.init_done
+    io.ld_done := amu.module.io.ld_done
+    io.st_done := amu.module.io.st_done
+
+    amu.module.io.reg_in := io.reg_in
+    io.reg_out := amu.module.io.reg_out
+    */
   }
 
 }
