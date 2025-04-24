@@ -72,7 +72,7 @@ class TestTopIO(implicit p: Parameters) extends Bundle {
 }
 */
 
-class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
+class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters, params: TLBundleParameters) extends LazyModule {
 
   override lazy val desiredName: String = "TestTop"
   val delayFactor = 0.2
@@ -125,7 +125,7 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
   //     ))
   //   }
   // }
-  val amu = LazyModule(new AMU()(p))
+  val amu = LazyModule(new AMU()(p, params))
   val matrix_nodes = amu.matrix_nodes
   val c_nodes = Seq(l1d)
   val l1i_nodes = Seq(l1i)
@@ -291,7 +291,18 @@ object TestTop_L2L3_AME extends App {
   ChiselDB.init(true)
   Constantin.init(false)
 
-  val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p)) )(config)
+  implicit val tlBundleParams: TLBundleParameters = TLBundleParameters(
+    addressBits = 32,
+    dataBits = 64,
+    sourceBits = 4,
+    sinkBits = 2,
+    sizeBits = 4,
+    echoFields = Nil,
+    requestFields = Nil,
+    responseFields = Nil,
+    hasBCE = false
+  )
+  val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p, tlBundleParams)) )(config)
   (new ChiselStage).execute(args, Seq(
     ChiselGeneratorAnnotation(() => top.module)
   ))

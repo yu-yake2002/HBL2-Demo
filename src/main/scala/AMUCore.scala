@@ -16,9 +16,10 @@ import coupledL2._
 import hbl2demo.AMUParameter
 import hbl2demo.HBL2_TL
 import hbl2demo.RegInfo
+import utility.TLLogger.a
 
 
-class AMUCore_IO extends AMUBundle {
+class AMUCore_IO (implicit p: Parameters, params: TLBundleParameters) extends AMUBundle {
   val init_fire = Input(Bool())
   val ld_fire   = Input(Bool())
   val st_fire   = Input(Bool())
@@ -30,11 +31,11 @@ class AMUCore_IO extends AMUBundle {
   val reg_in    = Input(new RegInfo)
 }
 
-class AMUCore extends Module with AMUParameter {
+class AMUCore (implicit p: Parameters, params: TLBundleParameters)  extends Module with AMUParameter {
   val io = IO(new AMUCore_IO)
 
   // 8 * 32B vector
-  val reg = Reg(Vec(8, UInt(aPutBits.W)))
+  val reg = Reg(Vec(8, new DSBlock)) // Ensure DSBlock is instantiated without parameters
   // read data: asynchronous
   io.reg_out.reginfo := reg
 
@@ -83,16 +84,16 @@ class AMUCore extends Module with AMUParameter {
     is(ldAReq) {
       for (i <- 0 until 8) {
         // channel A
-        io.tl.hbl2_tl(i).a.a_valid       := true.B
-        io.tl.hbl2_tl(i).a.a_opcode      := TLMessages.Get
-        io.tl.hbl2_tl(i).a.a_param       := 0.U
-        io.tl.hbl2_tl(i).a.a_size        := cachelineBytesLog2.U
-        io.tl.hbl2_tl(i).a.a_source      := i.U
-        io.tl.hbl2_tl(i).a.a_address     := i.U * 64.U // TODO: reverse the address in ld after st
-        io.tl.hbl2_tl(i).a.a_user_matrix := i.U
-        io.tl.hbl2_tl(i).a.a_mask        := 0.U
-        io.tl.hbl2_tl(i).a.a_data        := 0.U
-        io.tl.hbl2_tl(i).a.a_corrupt     := 0.U
+        io.tl.hbl2_tl(i).a.valid                  := true.B
+        io.tl.hbl2_tl(i).a.bits.opcode            := TLMessages.Get
+        io.tl.hbl2_tl(i).a.bits.param             := 0.U
+        io.tl.hbl2_tl(i).a.bits.size              := cachelineBytesLog2.U
+        io.tl.hbl2_tl(i).a.bits.source            := i.U
+        io.tl.hbl2_tl(i).a.bits.address           := i.U * 64.U // TODO: reverse the address in ld after st
+        // io.tl.hbl2_tl(i).a.bits.user(MatrixKey)   := 1.U
+        io.tl.hbl2_tl(i).a.bits.mask              := 0.U
+        io.tl.hbl2_tl(i).a.bits.data              := 0.U
+        io.tl.hbl2_tl(i).a.bits.corrupt           := 0.U
       }
 
       // TODO: when all channel A are ready, go to next state
@@ -102,8 +103,8 @@ class AMUCore extends Module with AMUParameter {
     is(ldMData) {
       for (i <- 0 until 8) {
         // channel M: store first 32B to register
-        when(io.tl.hbl2_tl(i).m.m_valid) {
-          reg(i) := io.tl.hbl2_tl(i).m.m_data(aPutBits-1, 0)
+        when(io.tl.hbl2_tl(i).m.valid) {
+          reg(i) := io.tl.hbl2_tl(i).m.bits.data
         }
       }
       state_r := ldDone
@@ -117,16 +118,16 @@ class AMUCore extends Module with AMUParameter {
     is(stAReq) {
       for (i <- 0 until 8) {
         // channel A
-        io.tl.hbl2_tl(i).a.a_valid       := true.B
-        io.tl.hbl2_tl(i).a.a_opcode      := TLMessages.PutFullData
-        io.tl.hbl2_tl(i).a.a_param       := 0.U
-        io.tl.hbl2_tl(i).a.a_size        := cachelineBytesLog2.U
-        io.tl.hbl2_tl(i).a.a_source      := i.U
-        io.tl.hbl2_tl(i).a.a_address     := i.U * 64.U 
-        io.tl.hbl2_tl(i).a.a_user_matrix := i.U
-        io.tl.hbl2_tl(i).a.a_mask        := 0.U
-        io.tl.hbl2_tl(i).a.a_data        := reg(i)
-        io.tl.hbl2_tl(i).a.a_corrupt     := 0.U
+        io.tl.hbl2_tl(i).a.valid                  := true.B
+        io.tl.hbl2_tl(i).a.bits.opcode            := TLMessages.PutFullData
+        io.tl.hbl2_tl(i).a.bits.param             := 0.U
+        io.tl.hbl2_tl(i).a.bits.size              := cachelineBytesLog2.U
+        io.tl.hbl2_tl(i).a.bits.source            := i.U
+        io.tl.hbl2_tl(i).a.bits.address           := i.U * 64.U 
+        // io.tl.hbl2_tl(i).a.bits.user(MatrixKey)   := 1.U
+        io.tl.hbl2_tl(i).a.bits.mask              := 0.U
+        io.tl.hbl2_tl(i).a.bits.data              := reg(i).data(aPutBits-1, 0)
+        io.tl.hbl2_tl(i).a.bits.corrupt           := 0.U
       }
       state_r := stDAck
     }
@@ -135,9 +136,9 @@ class AMUCore extends Module with AMUParameter {
       val stAllAck = WireDefault(true.B)
       for (i <- 0 until 8) {
         // channel D
-        io.tl.hbl2_tl(i).d.d_ready := true.B
-        when(io.tl.hbl2_tl(i).d.d_valid) {
-          stAllAck := stAllAck && io.tl.hbl2_tl(i).d.d_opcode === TLMessages.AccessAckData
+        io.tl.hbl2_tl(i).d.ready := true.B
+        when(io.tl.hbl2_tl(i).d.valid) {
+          stAllAck := stAllAck && io.tl.hbl2_tl(i).d.bits.opcode === TLMessages.AccessAckData
         }
       }
       when(stAllAck) {

@@ -33,9 +33,9 @@ class AMUIO(implicit p: Parameters) extends Bundle {
 }
 
 
-class AMUImp(outer: AMU) extends LazyModuleImp(outer) {
+class AMUImp(outer: AMU, params: TLBundleParameters) extends LazyModuleImp(outer) {
   val io = IO(new AMUIO)
-  val amucore = Module(new AMUCore)
+  val amucore = Module(new AMUCore()(p, params))
 
   // connect AMUCore
   amucore.io.init_fire := io.init_fire
@@ -51,37 +51,38 @@ class AMUImp(outer: AMU) extends LazyModuleImp(outer) {
   // channel M: no diplomacy
   private val matrix_data_in = io.matrix_data_in
   for (i <- 0 until 8) {
-    amucore.io.tl.hbl2_tl(i).m.m_valid := matrix_data_in(i).valid
     matrix_data_in(i).ready := true.B // AMU is receiver in M channel
-    matrix_data_in(i).bits.data := amucore.io.tl.hbl2_tl(i).m.m_data
-    matrix_data_in(i).bits.sourceId := amucore.io.tl.hbl2_tl(i).m.m_source
+    amucore.io.tl.hbl2_tl(i).m.valid := matrix_data_in(i).valid
+    amucore.io.tl.hbl2_tl(i).m.bits.data := matrix_data_in(i).bits.data
+    amucore.io.tl.hbl2_tl(i).m.bits.sourceId := matrix_data_in(i).bits.sourceId
   }
 
   // channel A & D: diplomatic node is in outer AMU
   outer.matrix_nodes.zipWithIndex.foreach { case (matrix_node, i) =>
     val (bus, edge) = matrix_node.out.head
 
-    amucore.io.tl.hbl2_tl(i).a.a_ready := bus.a.ready
-    bus.a.valid := amucore.io.tl.hbl2_tl(i).a.a_valid
-    bus.a.bits.opcode := amucore.io.tl.hbl2_tl(i).a.a_opcode
-    bus.a.bits.param := amucore.io.tl.hbl2_tl(i).a.a_param
-    bus.a.bits.size := amucore.io.tl.hbl2_tl(i).a.a_size
-    bus.a.bits.source := amucore.io.tl.hbl2_tl(i).a.a_source
-    bus.a.bits.address := amucore.io.tl.hbl2_tl(i).a.a_address
-    bus.a.bits.user := amucore.io.tl.hbl2_tl(i).a.a_user_matrix
-    bus.a.bits.mask := amucore.io.tl.hbl2_tl(i).a.a_mask
-    bus.a.bits.data := amucore.io.tl.hbl2_tl(i).a.a_data
-    bus.a.bits.corrupt := amucore.io.tl.hbl2_tl(i).a.a_corrupt
+    amucore.io.tl.hbl2_tl(i).a.ready := bus.a.ready
+    bus.a.valid                      := amucore.io.tl.hbl2_tl(i).a.valid
+    bus.a.bits.opcode                := amucore.io.tl.hbl2_tl(i).a.bits.opcode
+    bus.a.bits.param                 := amucore.io.tl.hbl2_tl(i).a.bits.param
+    bus.a.bits.size                  := amucore.io.tl.hbl2_tl(i).a.bits.size
+    bus.a.bits.source                := amucore.io.tl.hbl2_tl(i).a.bits.source
+    bus.a.bits.address               := amucore.io.tl.hbl2_tl(i).a.bits.address
+    bus.a.bits.user(MatrixKey)       := 1.U  // amucore.io.tl.hbl2_tl(i).a.bits.user(MatrixKey)
+    bus.a.bits.mask                  := amucore.io.tl.hbl2_tl(i).a.bits.mask
+    bus.a.bits.data                  := amucore.io.tl.hbl2_tl(i).a.bits.data
+    bus.a.bits.corrupt               := amucore.io.tl.hbl2_tl(i).a.bits.corrupt
 
-    amucore.io.tl.hbl2_tl(i).d.d_valid := bus.d.valid
-    bus.d.ready := amucore.io.tl.hbl2_tl(i).d.d_ready
-    bus.d.bits.opcode := amucore.io.tl.hbl2_tl(i).d.d_opcode
-    bus.d.bits.param := amucore.io.tl.hbl2_tl(i).d.d_param
-    bus.d.bits.size := amucore.io.tl.hbl2_tl(i).d.d_size
-    bus.d.bits.source := amucore.io.tl.hbl2_tl(i).d.d_source  
-    bus.d.bits.sink := amucore.io.tl.hbl2_tl(i).d.d_sink
-    bus.d.bits.denied := amucore.io.tl.hbl2_tl(i).d.d_denied
-    bus.d.bits.data := amucore.io.tl.hbl2_tl(i).d.d_data
-    bus.d.bits.corrupt := amucore.io.tl.hbl2_tl(i).d.d_corrupt
+    
+    bus.d.ready                              := amucore.io.tl.hbl2_tl(i).d.ready
+    amucore.io.tl.hbl2_tl(i).d.valid         := bus.d.valid
+    amucore.io.tl.hbl2_tl(i).d.bits.opcode   := bus.d.bits.opcode
+    amucore.io.tl.hbl2_tl(i).d.bits.param    := bus.d.bits.param
+    amucore.io.tl.hbl2_tl(i).d.bits.size     := bus.d.bits.size
+    amucore.io.tl.hbl2_tl(i).d.bits.source   := bus.d.bits.source  
+    amucore.io.tl.hbl2_tl(i).d.bits.sink     := bus.d.bits.sink
+    amucore.io.tl.hbl2_tl(i).d.bits.denied   := bus.d.bits.denied
+    amucore.io.tl.hbl2_tl(i).d.bits.data     := bus.d.bits.data
+    amucore.io.tl.hbl2_tl(i).d.bits.corrupt  := bus.d.bits.corrupt
   }
 }

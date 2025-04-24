@@ -13,6 +13,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink.TLPermissions._
 import coupledL2._
 
+
 trait AMUParameter {
   val pAddrBits: Int = 64 // address bits
 
@@ -67,17 +68,17 @@ class TL_M extends AMUBundle {
   val m_data        = Input(UInt(mGetBits.W))   // only for GET request
 }
 
-class TL_Link extends AMUBundle {
-  val a = (new TL_A)
-  val d = (new TL_D)
-  val m = (new TL_M)
+class TL_Link (implicit p: Parameters, params: TLBundleParameters) extends AMUBundle {
+  val a = (DecoupledIO(new TLBundleA(params))) // (new TL_A)
+  val d = Flipped((DecoupledIO(new TLBundleD(params)))) // (new TL_D)
+  val m = Flipped((DecoupledIO(new MatrixDataBundle())))// (new TL_M)
 }
 
-class HBL2_TL extends AMUBundle {
+class HBL2_TL (implicit p: Parameters, params: TLBundleParameters) extends AMUBundle {
   val hbl2_tl = Vec(8, new TL_Link) // 8 banks, 8 links
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
-class RegInfo extends AMUBundle {
-  val reginfo = (Vec(8, UInt(mGetBits.W))) // 8 banks
+class RegInfo (implicit p: Parameters) extends AMUBundle{
+  val reginfo = (Vec(8, new DSBlock()))
 }

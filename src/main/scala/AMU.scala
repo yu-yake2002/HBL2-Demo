@@ -14,7 +14,7 @@ import freechips.rocketchip.tilelink.TLPermissions._
 import coupledL2._
 
 
-class AMU(implicit p: Parameters) extends LazyModule {
+class AMU(implicit p: Parameters, params: TLBundleParameters) extends LazyModule {
 
   // 8 client node
   val matrix_nodes = (0 until 1).flatMap { i =>
@@ -31,6 +31,6 @@ class AMU(implicit p: Parameters) extends LazyModule {
     }
   }
 
-  lazy val module: AMUImp = new AMUImp(this)
+  lazy val module: AMUImp = new AMUImp(this, params) 
 }
 
