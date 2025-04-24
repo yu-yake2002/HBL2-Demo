@@ -249,6 +249,12 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters, params: TLBundleParameters
     //IO(Vec(l2_banks, DecoupledIO(new MatrixDataBundle())))
     matrix_data_out <> l2.module.io.matrixDataOut512L2
 
+    // initialize
+    amu.module.io.init_fire := false.B
+    amu.module.io.ld_fire   := false.B
+    amu.module.io.st_fire   := false.B
+    amu.module.io.reg_in := DontCare
+
     /*
     // connect amu & testtop
     amu.module.io.init_fire := io.init_fire

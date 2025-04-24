@@ -34,8 +34,32 @@ class AMUCore_IO (implicit p: Parameters, params: TLBundleParameters) extends AM
 class AMUCore (implicit p: Parameters, params: TLBundleParameters)  extends Module with AMUParameter {
   val io = IO(new AMUCore_IO)
 
+  // initialize IO
+  io.init_done := false.B
+  io.ld_done   := false.B
+  io.st_done   := false.B
+  for (i <- 0 until 8) {
+    io.tl.hbl2_tl(i).a.valid := false.B
+    io.tl.hbl2_tl(i).a.bits.opcode := 0.U
+    io.tl.hbl2_tl(i).a.bits.param := 0.U
+    io.tl.hbl2_tl(i).a.bits.size := 0.U
+    io.tl.hbl2_tl(i).a.bits.source := 0.U
+    io.tl.hbl2_tl(i).a.bits.address := 0.U
+    // io.tl.hbl2_tl(i).a.bits.user(MatrixKey) := 0.U
+    io.tl.hbl2_tl(i).a.bits.mask := 0.U
+    io.tl.hbl2_tl(i).a.bits.data := 0.U
+    io.tl.hbl2_tl(i).a.bits.corrupt := 0.U
+
+    io.tl.hbl2_tl(i).d.ready := false.B
+    io.tl.hbl2_tl(i).m.ready := false.B
+  }
+
   // 8 * 32B vector
   val reg = Reg(Vec(8, new DSBlock)) // Ensure DSBlock is instantiated without parameters
+  // initialize register
+  for (i <- 0 until 8) {
+    reg(i).data := 0.U
+  }
   // read data: asynchronous
   io.reg_out.reginfo := reg
 
@@ -133,12 +157,13 @@ class AMUCore (implicit p: Parameters, params: TLBundleParameters)  extends Modu
     }
 
     is(stDAck) {
-      val stAllAck = WireDefault(true.B)
+      val stAck = RegInit(VecInit(Seq.fill(8)(false.B)))
+      val stAllAck = stAck.reduce(_ && _)
       for (i <- 0 until 8) {
         // channel D
         io.tl.hbl2_tl(i).d.ready := true.B
-        when(io.tl.hbl2_tl(i).d.valid) {
-          stAllAck := stAllAck && io.tl.hbl2_tl(i).d.bits.opcode === TLMessages.AccessAckData
+        when(io.tl.hbl2_tl(i).d.valid && io.tl.hbl2_tl(i).d.bits.opcode === TLMessages.AccessAckData) {
+          stAck(i) := true.B
         }
       }
       when(stAllAck) {
