@@ -23,15 +23,17 @@ class AMUCore_IO (implicit p: Parameters, params: TLBundleParameters) extends AM
   val init_fire = Input(Bool())
   val ld_fire   = Input(Bool())
   val st_fire   = Input(Bool())
+
   val init_done = Output(Bool())
   val ld_done   = Output(Bool())
   val st_done   = Output(Bool())
+  
   val tl        = new HBL2_TL
   val reg_out   = Output(new RegInfo)
   val reg_in    = Input(new RegInfo)
 }
 
-class AMUCore (implicit p: Parameters, params: TLBundleParameters)  extends Module with AMUParameter {
+class AMUCore (implicit p: Parameters, params: TLBundleParameters) extends Module with AMUParameter {
   val io = IO(new AMUCore_IO)
 
   // initialize IO
@@ -81,6 +83,7 @@ class AMUCore (implicit p: Parameters, params: TLBundleParameters)  extends Modu
 
   val state_r  = RegInit(idle)
 
+  
 /////////////////////////////////////////////////////////////////////////////////////////
   switch(state_r) {
     is(idle) {
@@ -101,6 +104,7 @@ class AMUCore (implicit p: Parameters, params: TLBundleParameters)  extends Modu
       state_r := initDone
     }
     is(initDone) {
+      io.init_done := true.B
       state_r := idle
     }
 
@@ -135,6 +139,7 @@ class AMUCore (implicit p: Parameters, params: TLBundleParameters)  extends Modu
     }
 
     is(ldDone) {
+      io.ld_done := true.B
       state_r := idle
     }
 
@@ -172,6 +177,7 @@ class AMUCore (implicit p: Parameters, params: TLBundleParameters)  extends Modu
     }
 
     is(stDone) {
+      io.st_done := true.B
       state_r := idle
     }
   }

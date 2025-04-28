@@ -35,6 +35,7 @@ trait AMUParameter {
 class AMUBundle extends Bundle with AMUParameter
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
+/*
 class TL_A extends AMUBundle {
   val a_valid       = Output(Bool())             // valid
   val a_ready       = Input(Bool())             // ready
@@ -67,6 +68,7 @@ class TL_M extends AMUBundle {
   val m_source      = Input(UInt(5.W))  
   val m_data        = Input(UInt(mGetBits.W))   // only for GET request
 }
+*/
 
 class TL_Link (implicit p: Parameters, params: TLBundleParameters) extends AMUBundle {
   val a = (DecoupledIO(new TLBundleA(params))) // (new TL_A)

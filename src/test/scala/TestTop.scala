@@ -19,6 +19,13 @@ import scala.collection.mutable.ArrayBuffer
 
 import hbl2demo.RegInfo
 
+import chiseltest._
+import chiseltest.{VerilatorBackendAnnotation, WriteVcdAnnotation}
+import chiseltest.simulator.{VerilatorCFlags, VerilatorFlags}
+import firrtl.AnnotationSeq
+import org.scalatest.flatspec._
+import org.scalatest.matchers.should._
+
 case object L2BanksKey extends Field[Int]
 case object L3BanksKey extends Field[Int]
 case object MNumKey extends Field[Int]
@@ -251,7 +258,7 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters, params: TLBundleParameters
 
     // initialize
     amu.module.io.init_fire := false.B
-    amu.module.io.ld_fire   := false.B
+    amu.module.io.ld_fire   := true.B
     amu.module.io.st_fire   := false.B
     amu.module.io.reg_in := DontCare
 
@@ -278,6 +285,8 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters, params: TLBundleParameters
    *   | 
    *  L3
    */
+
+
 
 object TestTop_L2L3_AME extends App {
   val l2_banks=8
@@ -308,7 +317,7 @@ object TestTop_L2L3_AME extends App {
     responseFields = Nil,
     hasBCE = false
   )
-  val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p, tlBundleParams)) )(config)
+  val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p, tlBundleParams)))(config)
   (new ChiselStage).execute(args, Seq(
     ChiselGeneratorAnnotation(() => top.module)
   ))
@@ -318,3 +327,88 @@ object TestTop_L2L3_AME extends App {
   FileRegisters.write("./build")
 }
 
+
+
+abstract class AMETester extends AnyFlatSpec with ChiselScalatestTester with Matchers with HasTestAnnos {
+  behavior of "TestTop_L2L3_AME"
+  implicit val defaultConfig = baseConfigAME(1, 8, 8, 8).alterPartial({
+    case L2ParamKey => L2Param(
+      clientCaches = Seq(L1Param(aliasBitsOpt = Some(2))),
+      echoField = Seq(DirtyField()),
+      enablePerf = false
+    )
+    case HCCacheParamsKey => HCCacheParameters(
+      echoField = Seq(DirtyField())
+    )
+  })
+}
+
+trait HasTestAnnos {
+  var testAnnos: AnnotationSeq = Seq()
+}
+
+trait UseVerilatorBackend { this: HasTestAnnos =>
+  testAnnos = testAnnos ++ Seq(VerilatorBackendAnnotation)
+}
+
+trait RandomResetRegs { this: HasTestAnnos with UseVerilatorBackend =>
+  testAnnos = testAnnos ++ Seq(
+    VerilatorFlags(Seq(
+      "+define+RANDOMIZE_REG_INIT",
+      "+define+RANDOMIZE_MEM_INIT",
+      "+define+RANDOMIZE_GARBAGE_ASSIGN",
+      "+define+RANDOMIZE_DELAY=0"
+    ))
+  )
+}
+
+trait DumpVCD { this: HasTestAnnos =>
+  testAnnos = testAnnos :+ WriteVcdAnnotation
+}
+
+
+class TestTop_L2L3_AME_ChiselTest extends AMETester with UseVerilatorBackend with DumpVCD {
+
+  val l2_banks = 8
+  val l3_banks = 8
+  val m_num = l2_banks
+
+  // initialization is in AMETester
+
+  it should "pass basic initialization test" in {
+    ChiselDB.init(true)
+    Constantin.init(false)
+
+    implicit val tlBundleParams: TLBundleParameters = TLBundleParameters(
+      addressBits = 32,
+      dataBits = 64,
+      sourceBits = 4,
+      sinkBits = 2,
+      sizeBits = 4,
+      echoFields = Nil,
+      requestFields = Nil,
+      responseFields = Nil,
+      hasBCE = false
+    )
+    
+    val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p, tlBundleParams)))(defaultConfig)
+    test(top.module).withAnnotations(testAnnos) { dut =>  
+      ChiselDB.addToFileRegisters
+      Constantin.addToFileRegisters
+
+      dut.clock.setTimeout(1000)
+      dut.reset.poke(true.B)
+      dut.clock.step(10)
+      dut.reset.poke(false.B)
+      dut.clock.step(10)
+      
+      FileRegisters.write("./build/test_output")
+    }
+  }
+}
+
+object TestTop_L2L3_AME_Test extends App {
+// object TestTop_L2L3_AME extends App {
+  println("Running TestTop_L2L3_AME")
+  (new TestTop_L2L3_AME_ChiselTest).execute()
+}
