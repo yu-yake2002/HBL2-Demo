@@ -2,10 +2,23 @@
 
 A Simple AMU using HBL2 as package.
 
+Initialization:
+
 ```BASH
 git submodule update --init --recursive
+```
+
+Chisel Test:
+```BASH
 make test-top
 ```
+
+Generate Verilog:
+```BASH
+make gen-top
+```
+
+
 
 SIMPLE TEST:
 
