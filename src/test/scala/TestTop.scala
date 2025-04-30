@@ -308,8 +308,8 @@ object TestTop_L2L3_AME extends App {
       enablePerf          = false,
     )
   })
-  ChiselDB.init(true)
-  Constantin.init(false)
+  // ChiselDB.init(true)
+  // Constantin.init(false)
 
   implicit val tlBundleParams: TLBundleParameters = TLBundleParameters(
     addressBits = 32,
@@ -327,9 +327,9 @@ object TestTop_L2L3_AME extends App {
     ChiselGeneratorAnnotation(() => top.module)
   ))
 
-  ChiselDB.addToFileRegisters
-  Constantin.addToFileRegisters
-  FileRegisters.write("./build")
+  // ChiselDB.addToFileRegisters
+  // Constantin.addToFileRegisters
+  // FileRegisters.write("./build")
 }
 
 
@@ -382,8 +382,8 @@ class TestTop_L2L3_AME_ChiselTest extends AMETester with UseVerilatorBackend wit
   // initialization is in AMETester
 
   it should "pass basic initialization test" in {
-    ChiselDB.init(true)
-    Constantin.init(false)
+    // ChiselDB.init(true)
+    // Constantin.init(false)
 
     implicit val tlBundleParams: TLBundleParameters = TLBundleParameters(
       addressBits = 32,
@@ -399,8 +399,8 @@ class TestTop_L2L3_AME_ChiselTest extends AMETester with UseVerilatorBackend wit
     
     val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p, tlBundleParams)))(defaultConfig)
     test(top.module).withAnnotations(testAnnos) { dut =>  
-      ChiselDB.addToFileRegisters
-      Constantin.addToFileRegisters
+      // ChiselDB.addToFileRegisters
+      // Constantin.addToFileRegisters
 
       dut.clock.setTimeout(1000)
       dut.reset.poke(true.B)
@@ -408,7 +408,7 @@ class TestTop_L2L3_AME_ChiselTest extends AMETester with UseVerilatorBackend wit
       dut.reset.poke(false.B)
       dut.clock.step(10)
 
-      FileRegisters.write("./build/test_output")
+      // FileRegisters.write("./build/test_output")
     }
   }
 }
