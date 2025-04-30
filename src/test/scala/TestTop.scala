@@ -52,7 +52,7 @@ object baseConfigAME {
         ways                = 8,
         sets                = 512,
         channelBytes        = TLChannelBeatBytes(64),
-        // enablePerf          = false,
+        enablePerf          = false,
         // blockBytes = 128
       )
       case L2BanksKey => l2_banks
@@ -152,11 +152,14 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters, params: TLBundleParameters
     case LogUtilsOptionsKey => LogUtilsOptions(
       false,
       here(L2ParamKey).enablePerf,
+      // false,
       here(L2ParamKey).FPGAPlatform
     )
     case PerfCounterOptionsKey => PerfCounterOptions(
       here(L2ParamKey).enablePerf && !here(L2ParamKey).FPGAPlatform,
       here(L2ParamKey).enableRollingDB && !here(L2ParamKey).FPGAPlatform,
+      // false,
+      // false,
       0
     )
   })))
@@ -182,10 +185,12 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters, params: TLBundleParameters
     case LogUtilsOptionsKey => LogUtilsOptions(
       here(HCCacheParamsKey).enableDebug,
       here(HCCacheParamsKey).enablePerf,
+      // false,
       here(HCCacheParamsKey).FPGAPlatform
     )
     case PerfCounterOptionsKey => PerfCounterOptions(
       here(HCCacheParamsKey).enablePerf && !here(HCCacheParamsKey).FPGAPlatform,
+      // false,
       false,
       0
     )
@@ -287,7 +292,6 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters, params: TLBundleParameters
    */
 
 
-
 object TestTop_L2L3_AME extends App {
   val l2_banks=8
   val l3_banks=8
@@ -297,10 +301,11 @@ object TestTop_L2L3_AME extends App {
     case L2ParamKey => L2Param(
       clientCaches = Seq(L1Param(aliasBitsOpt = Some(2))),
       echoField = Seq(DirtyField()),
-      // enablePerf          = false,
+      enablePerf          = false,
     )
     case HCCacheParamsKey => HCCacheParameters(
-      echoField = Seq(DirtyField())
+      echoField = Seq(DirtyField()),
+      enablePerf          = false,
     )
   })
   ChiselDB.init(true)
@@ -333,12 +338,13 @@ abstract class AMETester extends AnyFlatSpec with ChiselScalatestTester with Mat
   behavior of "TestTop_L2L3_AME"
   implicit val defaultConfig = baseConfigAME(1, 8, 8, 8).alterPartial({
     case L2ParamKey => L2Param(
-      clientCaches = Seq(L1Param(aliasBitsOpt = Some(2))),
-      echoField = Seq(DirtyField()),
-      enablePerf = false
-    )
+      clientCaches        = Seq(L1Param(aliasBitsOpt = Some(2))),
+      echoField           = Seq(DirtyField()),
+      enablePerf          = false,
+    )     
     case HCCacheParamsKey => HCCacheParameters(
-      echoField = Seq(DirtyField())
+      echoField           = Seq(DirtyField()),
+      enablePerf          = false,
     )
   })
 }
@@ -401,7 +407,7 @@ class TestTop_L2L3_AME_ChiselTest extends AMETester with UseVerilatorBackend wit
       dut.clock.step(10)
       dut.reset.poke(false.B)
       dut.clock.step(10)
-      
+
       FileRegisters.write("./build/test_output")
     }
   }
