@@ -34,6 +34,8 @@ SIMPLE TEST:
 
 ## AMU v0: No Computing Core, only test for LD/ST.
 
-![AMU v0](images/v1.png)
+![AMU v0](images/v0.png)
 
 ## AMU v1: Add Computing Core, test for LD/ST and MMA.
+
+![AMU v1](images/v1.png)
