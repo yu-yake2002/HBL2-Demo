@@ -5,6 +5,8 @@ A Simple AMU using HBL2 as package.
 Initialization:
 
 ```BASH
+git clone git@github.com:LeleCheung/HBL2-AMU-Demo.git  
+cd HBL2-AMU-Demo
 git submodule update --init --recursive
 ```
 
