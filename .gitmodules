@@ -1,4 +1,4 @@
 [submodule "CoupledL2"]
-	path = CoupledL2
-	url = https://github.com/LeleCheung/Demo-HBL2
-	branch = demo-hbl2
+    path = CoupledL2
+    url = https://github.com/OpenXiangShan/CoupledL2.git
+    branch = matrix-test
