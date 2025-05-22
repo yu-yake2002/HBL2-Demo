@@ -81,7 +81,7 @@ class TestTopIO(implicit p: Parameters) extends Bundle {
 
 class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters, params: TLBundleParameters) extends LazyModule {
 
-  override lazy val desiredName: String = "TestTop"
+  override lazy val desiredName: String = "SimTop"
   val delayFactor = 0.2
   val cacheParams = p(L2ParamKey)
 
@@ -324,7 +324,11 @@ object TestTop_L2L3_AME extends App {
   )
   val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p, tlBundleParams)))(config)
   (new ChiselStage).execute(args, Seq(
-    ChiselGeneratorAnnotation(() => top.module)
+    ChiselGeneratorAnnotation(() => top.module),
+    // firrtl.stage.RunFirrtlTransformAnnotation(new firrtl.transforms.BlackBoxSourceHelper),
+    // firrtl.options.TargetDirAnnotation("build"),
+    firrtl.stage.OutputFileAnnotation("SimTop")
+  
   ))
 
   // ChiselDB.addToFileRegisters
@@ -396,7 +400,7 @@ class TestTop_L2L3_AME_ChiselTest extends AMETester with UseVerilatorBackend wit
       responseFields = Nil,
       hasBCE = false
     )
-    
+
     val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p, tlBundleParams)))(defaultConfig)
     test(top.module).withAnnotations(testAnnos) { dut =>  
       // ChiselDB.addToFileRegisters
