@@ -17,6 +17,14 @@ import coupledL2._
 
 import scala.collection.mutable.ArrayBuffer
 
+import hbl2demo.RegInfo
+
+import chiseltest._
+import chiseltest.{VerilatorBackendAnnotation, WriteVcdAnnotation}
+import chiseltest.simulator.{VerilatorCFlags, VerilatorFlags}
+import firrtl.AnnotationSeq
+import org.scalatest.flatspec._
+import org.scalatest.matchers.should._
 
 case object L2BanksKey extends Field[Int]
 case object L3BanksKey extends Field[Int]
@@ -44,7 +52,7 @@ object baseConfigAME {
         ways                = 8,
         sets                = 512,
         channelBytes        = TLChannelBeatBytes(64),
-        // enablePerf          = false,
+        enablePerf          = false,
         // blockBytes = 128
       )
       case L2BanksKey => l2_banks
@@ -54,11 +62,30 @@ object baseConfigAME {
   }
 }
 
-class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
+/*
+// CUATION: no explcit IO in lazy module
 
-  override lazy val desiredName: String = "TestTop"
+class TestTopIO(implicit p: Parameters) extends Bundle {
+  val init_fire = Input(Bool())
+  val ld_fire   = Input(Bool())
+  val st_fire   = Input(Bool())
+  val init_done = Output(Bool())
+  val ld_done   = Output(Bool())
+  val st_done   = Output(Bool())
+  
+  val reg_in  = Input(new RegInfo)
+  val reg_out = Output(new RegInfo)
+
+}
+*/
+
+class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters, params: TLBundleParameters) extends LazyModule {
+
+  override lazy val desiredName: String = "SimTop"
   val delayFactor = 0.2
   val cacheParams = p(L2ParamKey)
+
+  // val io = IO(new TestTopIO)
 
   def createClientNode(name: String, sources: Int) = {
     val masterNode = TLClientNode(Seq(
@@ -105,7 +132,7 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
   //     ))
   //   }
   // }
-  val amu = LazyModule(new AMU()(p))
+  val amu = LazyModule(new AMU()(p, params))
   val matrix_nodes = amu.matrix_nodes
   val c_nodes = Seq(l1d)
   val l1i_nodes = Seq(l1i)
@@ -125,11 +152,14 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
     case LogUtilsOptionsKey => LogUtilsOptions(
       false,
       here(L2ParamKey).enablePerf,
+      // false,
       here(L2ParamKey).FPGAPlatform
     )
     case PerfCounterOptionsKey => PerfCounterOptions(
       here(L2ParamKey).enablePerf && !here(L2ParamKey).FPGAPlatform,
       here(L2ParamKey).enableRollingDB && !here(L2ParamKey).FPGAPlatform,
+      // false,
+      // false,
       0
     )
   })))
@@ -155,10 +185,12 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
     case LogUtilsOptionsKey => LogUtilsOptions(
       here(HCCacheParamsKey).enableDebug,
       here(HCCacheParamsKey).enablePerf,
+      // false,
       here(HCCacheParamsKey).FPGAPlatform
     )
     case PerfCounterOptionsKey => PerfCounterOptions(
       here(HCCacheParamsKey).enablePerf && !here(HCCacheParamsKey).FPGAPlatform,
+      // false,
       false,
       0
     )
@@ -223,10 +255,31 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
     l2.module.io.debugTopDown <> DontCare
     l2.module.io.l2_tlb_req <> DontCare
     l2.module.io.matrixDataOut512L2:= DontCare
+
     // For matrix get , l2 return data
     val matrix_data_out = amu.module.io.matrix_data_in
     //IO(Vec(l2_banks, DecoupledIO(new MatrixDataBundle())))
     matrix_data_out <> l2.module.io.matrixDataOut512L2
+
+    // initialize
+    amu.module.io.init_fire := false.B
+    amu.module.io.ld_fire   := true.B
+    amu.module.io.st_fire   := false.B
+    amu.module.io.reg_in := DontCare
+
+    /*
+    // connect amu & testtop
+    amu.module.io.init_fire := io.init_fire
+    amu.module.io.ld_fire   := io.ld_fire
+    amu.module.io.st_fire   := io.st_fire
+
+    io.init_done := amu.module.io.init_done
+    io.ld_done := amu.module.io.ld_done
+    io.st_done := amu.module.io.st_done
+
+    amu.module.io.reg_in := io.reg_in
+    io.reg_out := amu.module.io.reg_out
+    */
   }
 
 }
@@ -238,6 +291,7 @@ class TestTop_AMU_L2_L3_RAM()(implicit p: Parameters) extends LazyModule {
    *  L3
    */
 
+
 object TestTop_L2L3_AME extends App {
   val l2_banks=8
   val l3_banks=8
@@ -247,22 +301,127 @@ object TestTop_L2L3_AME extends App {
     case L2ParamKey => L2Param(
       clientCaches = Seq(L1Param(aliasBitsOpt = Some(2))),
       echoField = Seq(DirtyField()),
-      // enablePerf          = false,
+      enablePerf          = false,
     )
     case HCCacheParamsKey => HCCacheParameters(
-      echoField = Seq(DirtyField())
+      echoField = Seq(DirtyField()),
+      enablePerf          = false,
     )
   })
-  ChiselDB.init(true)
-  Constantin.init(false)
+  // ChiselDB.init(true)
+  // Constantin.init(false)
 
-  val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p)) )(config)
+  implicit val tlBundleParams: TLBundleParameters = TLBundleParameters(
+    addressBits = 32,
+    dataBits = 64,
+    sourceBits = 4,
+    sinkBits = 2,
+    sizeBits = 4,
+    echoFields = Nil,
+    requestFields = Nil,
+    responseFields = Nil,
+    hasBCE = false
+  )
+  val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p, tlBundleParams)))(config)
   (new ChiselStage).execute(args, Seq(
-    ChiselGeneratorAnnotation(() => top.module)
+    ChiselGeneratorAnnotation(() => top.module),
+    // firrtl.stage.RunFirrtlTransformAnnotation(new firrtl.transforms.BlackBoxSourceHelper),
+    // firrtl.options.TargetDirAnnotation("build"),
+    firrtl.stage.OutputFileAnnotation("SimTop")
+  
   ))
 
-  ChiselDB.addToFileRegisters
-  Constantin.addToFileRegisters
-  FileRegisters.write("./build")
+  // ChiselDB.addToFileRegisters
+  // Constantin.addToFileRegisters
+  // FileRegisters.write("./build")
 }
 
+
+
+abstract class AMETester extends AnyFlatSpec with ChiselScalatestTester with Matchers with HasTestAnnos {
+  behavior of "TestTop_L2L3_AME"
+  implicit val defaultConfig = baseConfigAME(1, 8, 8, 8).alterPartial({
+    case L2ParamKey => L2Param(
+      clientCaches        = Seq(L1Param(aliasBitsOpt = Some(2))),
+      echoField           = Seq(DirtyField()),
+      enablePerf          = false,
+    )     
+    case HCCacheParamsKey => HCCacheParameters(
+      echoField           = Seq(DirtyField()),
+      enablePerf          = false,
+    )
+  })
+}
+
+trait HasTestAnnos {
+  var testAnnos: AnnotationSeq = Seq()
+}
+
+trait UseVerilatorBackend { this: HasTestAnnos =>
+  testAnnos = testAnnos ++ Seq(VerilatorBackendAnnotation)
+}
+
+trait RandomResetRegs { this: HasTestAnnos with UseVerilatorBackend =>
+  testAnnos = testAnnos ++ Seq(
+    VerilatorFlags(Seq(
+      "+define+RANDOMIZE_REG_INIT",
+      "+define+RANDOMIZE_MEM_INIT",
+      "+define+RANDOMIZE_GARBAGE_ASSIGN",
+      "+define+RANDOMIZE_DELAY=0"
+    ))
+  )
+}
+
+trait DumpVCD { this: HasTestAnnos =>
+  testAnnos = testAnnos :+ WriteVcdAnnotation
+}
+
+
+class TestTop_L2L3_AME_ChiselTest extends AMETester with UseVerilatorBackend with DumpVCD {
+
+  val l2_banks = 8
+  val l3_banks = 8
+  val m_num = l2_banks
+
+  // initialization is in AMETester
+
+  it should "pass basic initialization test" in {
+    // ChiselDB.init(true)
+    // Constantin.init(false)
+
+    implicit val tlBundleParams: TLBundleParameters = TLBundleParameters(
+      addressBits = 32,
+      dataBits = 64,
+      sourceBits = 4,
+      sinkBits = 2,
+      sizeBits = 4,
+      echoFields = Nil,
+      requestFields = Nil,
+      responseFields = Nil,
+      hasBCE = false
+    )
+
+    val top = DisableMonitors(p => LazyModule(new TestTop_AMU_L2_L3_RAM()(p, tlBundleParams)))(defaultConfig)
+    test(top.module).withAnnotations(testAnnos) { dut =>  
+      // ChiselDB.addToFileRegisters
+      // Constantin.addToFileRegisters
+
+      dut.clock.setTimeout(1000)
+      dut.reset.poke(true.B)
+      dut.clock.step(10)
+      dut.reset.poke(false.B)
+      dut.clock.step(10)
+
+      // FileRegisters.write("./build/test_output")
+
+      // TODO: add more tests
+
+    }
+  }
+}
+
+object TestTop_L2L3_AME_Test extends App {
+// object TestTop_L2L3_AME extends App {
+  println("Running TestTop_L2L3_AME")
+  (new TestTop_L2L3_AME_ChiselTest).execute()
+}
