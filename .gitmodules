@@ -2,3 +2,7 @@
 	path = CoupledL2
 	url = https://github.com/OpenXiangShan/CoupledL2.git
 	branch = matrix-test
+[submodule "AME"]
+	path = AME
+	url = https://github.com/LeonZ03/AME.git
+	branch = master
