@@ -11,5 +11,15 @@ trait hbl2demoModule extends ScalaModule {
 
   def huancunModule: ScalaModule
 
-  override def moduleDeps = super.moduleDeps ++ Seq(coupledL2Module,rocketModule, utilityModule, huancunModule)
+  def ameModule: ScalaModule
+
+  def fpuModule: ScalaModule
+
+  override def moduleDeps = super.moduleDeps ++ Seq(
+    coupledL2Module,
+    rocketModule,
+    utilityModule,
+    huancunModule,
+    ameModule,
+    fpuModule)
 }
