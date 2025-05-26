@@ -73,7 +73,7 @@ class AMUImp(outer: AMU, params: TLBundleParameters) extends LazyModuleImp(outer
     bus.a.bits.data                  := amucore.io.tl.hbl2_tl(i).a.bits.data
     bus.a.bits.corrupt               := amucore.io.tl.hbl2_tl(i).a.bits.corrupt
 
-    
+
     bus.d.ready                              := amucore.io.tl.hbl2_tl(i).d.ready
     amucore.io.tl.hbl2_tl(i).d.valid         := bus.d.valid
     amucore.io.tl.hbl2_tl(i).d.bits.opcode   := bus.d.bits.opcode
