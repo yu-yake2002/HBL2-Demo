@@ -216,6 +216,12 @@ override lazy val desiredName: String = "SimTop"
     dontTouch(logEnable)
     dontTouch(clean)
     dontTouch(dump)
+    dontTouch(ameModule.io.sigDone)
+    dontTouch(ameModule.io.Uop_io)
+    dontTouch(ameModule.io.writeAll)
+    dontTouch(ameModule.io.readAll)
+    dontTouch(ameModule.io.matrix_data_in)
+    dontTouch(ameModule.subMLU.io.MLU_L2_io.Cacheline_ReadBack_io)
     // ameModule.io.Uop_io := DontCare
     ameModule.io.Uop_io <> uop_io
     ameModule.io.writeAll := DontCare
