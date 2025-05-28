@@ -146,13 +146,15 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
 
   for (i <- 0 until 8) {
     matrix_data_in(i).ready := true.B  // AME is receiver in M channel
-    subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).valid := false.B 
-    subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).data := 0.U
-    subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).id   := 0.U
+
     when(matrix_data_in(i).valid) {
-      // subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).valid := true.B
+      subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).valid := true.B
       subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).data := matrix_data_in(i).bits.data.data
       subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).id := matrix_data_in(i).bits.sourceId
+    }.otherwise {
+      subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).valid := false.B
+      subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).data := 0.U
+      subMLU.io.MLU_L2_io.Cacheline_ReadBack_io(i).id := 0.U
     }
   }
 
@@ -163,6 +165,7 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
     val edge = edges(i)
 
     // A channel - Get request handling
+    // tl.a.bits.user(MatrixKey):= 1.U
     when(subMLU.io.MLU_L2_io.Cacheline_Read_io(i).valid) {
       val (legal, get_bits) = edge.Get(
         fromSource = subMLU.io.MLU_L2_io.Cacheline_Read_io(i).id,
@@ -172,8 +175,9 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
       
       tl.a.valid := legal
       tl.a.bits := get_bits
-      tl.a.bits.user.lift(MatrixKey).foreach(_ := 1.U) // Mark as Matrix request
+      tl.a.bits.user(MatrixKey):= 1.U// Mark as Matrix request
     }.otherwise {
+      tl.a.bits.user(MatrixKey):= 0.U
       tl.a.valid := false.B
     }
 
