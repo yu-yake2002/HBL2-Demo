@@ -1,5 +1,5 @@
 gen-top:
-	mill -i hbl2demo.test.runMain hbl2demo.TestTop_AME -td ./build --target systemverilog --split-verilog
+	mill -i hbl2demo.test.runMain hbl2demo.TestTop_AME_System -td ./build --target systemverilog --split-verilog
 
 test-top:
 	mill -i hbl2demo.test.test
