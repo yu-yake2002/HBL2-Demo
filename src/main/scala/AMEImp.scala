@@ -16,7 +16,7 @@ import MLU._
 import AME._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
-import coupledL2.{MatrixField, MatrixKey, MatrixDataBundle}
+import coupledL2.{MatrixField, MatrixKey, MatrixDataBundle, AmeChannelKey, AmeIndexKey}
 
 // AME Parameters case class
 case class AMEParams(
@@ -114,14 +114,16 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
 
     when(mlu_read_io(i).valid) {
       val (legal, get_bits) = edge.Get(
-        fromSource = mlu_read_io(i).id,
+        fromSource = 0.U,
         toAddress = mlu_read_io(i).addr,
         lgSize = 6.U // 64 bytes = 2^6
       )
       
       tl.a.valid := legal
       tl.a.bits := get_bits
-      tl.a.bits.user(MatrixKey):= 1.U// Mark as Matrix request
+      tl.a.bits.user(MatrixKey):= 1.U  // Mark as Matrix request
+      tl.a.bits.user(AmeChannelKey) := i.U
+      tl.a.bits.user(AmeIndexKey) := mlu_read_io(i).id
     }.otherwise {
       tl.a.bits.user(MatrixKey):= 0.U
       tl.a.valid := false.B
@@ -184,6 +186,8 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
       tl.a.valid := legal
       tl.a.bits := put_bits
       tl.a.bits.user(MatrixKey) := 1.U  // Mark as Matrix request
+      tl.a.bits.user(AmeChannelKey) := i.U
+      tl.a.bits.user(AmeIndexKey) := 0.U
 
       when (tl.a.fire) {
         write_inflight(i) := false.B

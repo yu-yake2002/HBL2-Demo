@@ -1,7 +1,7 @@
 [submodule "CoupledL2"]
 	path = CoupledL2
-	url = https://github.com/OpenXiangShan/CoupledL2.git
-	branch = matrix-test
+	url = https://github.com/Wonicon/Demo-HBL2.git
+	branch = demo-hbl2
 [submodule "AME"]
 	path = AME
 	url = https://github.com/LeonZ03/AME.git
