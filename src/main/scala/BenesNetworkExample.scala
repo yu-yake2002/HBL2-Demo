@@ -2,49 +2,40 @@ package hbl2demo
 
 import chisel3._
 import chisel3.util._
-// import freechips.rocketchip.config._
-import org.chipsalliance.cde.config.{Parameters, Field}
-import AME._
-import AME.{AME, connectPort}
-import utility.sram._
-import common._
-import RegFile._
-import MMAU._
-import Expander._
-import ScoreBoard._
-import MLU._
-import AME._
+import org.chipsalliance.cde.config.Parameters
+import coupledL2.{MatrixField, MatrixKey, MatrixDataBundle}
+import freechips.rocketchip.tilelink.TLMessages
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
-import coupledL2.{MatrixField, MatrixKey, MatrixDataBundle, AmeChannelKey, AmeIndexKey}
-import utility.XSPerfAccumulate
+import common.Consts
+import AME._
 
-// AME Parameters case class
-case class AMEParams(
-  numTrRegs: Int = 2,      // Number of Tr registers
-  numAccRegs: Int = 1,     // Number of Acc registers
-  dataWidth: Int = 32,     // Data width
-  matrixSize: Int = 16     // Matrix size (NxN)
-)
+/**
+ * Example of how to integrate Benes Network with AME
+ * This shows how to replace the current matrix_data_in handling with Benes network
+ */
+class AMEWithBenesNetwork(implicit p: Parameters) extends Module {
+  val io = IO(new Bundle {
+    val matrix_data_in = Vec(8, Flipped(DecoupledIO(new MatrixDataBundle())))
+    val matrix_data_out = Vec(8, DecoupledIO(new MatrixDataBundle()))
+    val channel_id_bits = Input(UInt(3.W))
+  })
 
-// AME Configuration Object
-// object AMEConfigKey {
-//   val AMEConfig = new Field[AMEParams]
-// }
-case object AMEConfigKey extends Field[AMEParams]// 需要定义(AMEParam())
-
-// AME IO Bundle
-class AMEIO(implicit p: Parameters) extends Bundle {
-  val Uop_io = new Uop_IO
-  val writeAll = new RegFileAllWrite_IO
-  val readAll = new RegFileAllRead_IO
-  val sigDone = Output(Bool())
-  val matrix_data_in = Vec(8, Flipped(DecoupledIO(new MatrixDataBundle())))  
-  // val matrix_data_in = Vec(8, DecoupledIO(new MatrixDataBundle()))  // For M channel responses
+  // Instantiate Benes Network
+  val benes_network = Module(new BenesNetwork8x8Simple)
+  
+  // Connect inputs to Benes network
+  benes_network.io.in <> io.matrix_data_in
+  
+  // Connect Benes network outputs to final outputs
+  io.matrix_data_out <> benes_network.io.out
 }
 
-// AME Implementation
-class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(outer) {
+/**
+ * Enhanced AME implementation with Benes Network
+ * This replaces the current readback_arbiters approach with Benes network routing
+ */
+class AMEImpWithBenes(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(outer) {
   val io = IO(new AMEIO)
   
   // Get TileLink interfaces for all 8 matrix nodes
@@ -69,17 +60,17 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
   println(s"[AMEModule] write beats: $write_beats, ame_data_bits: $ame_data_bits, tl_data_bits: $tl_data_bits")
   require(write_beats == 2, "write_beats must be 2")
 
+  val channel_id_bits = log2Ceil(mlu_read_io.length)
+
   // Use mlu_read_io length for unified processing when iterating through mlu_read_io
   // Since msu_write_io length is less than mlu_read_io, extra entries will be optimized away
   val write_inflight = RegInit(VecInit(Seq.fill(mlu_read_io.length)(false.B)))
   require(msu_write_io.length <= mlu_read_io.length, "guard write_inflight indexing")
 
-  val channel_bank_mapper: ChannelBankMapper = new ChannelBankPollingMapper(this)
-
   tls.foreach { tl =>
     tl.a.valid := false.B
     tl.a.bits := 0.U.asTypeOf(tl.a.bits)
-
+ 
     // D channel - Only used for Put responses
     tl.d.ready := true.B
 
@@ -91,6 +82,25 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
     tl.e.bits := 0.U.asTypeOf(tl.e.bits)
   }
 
+  // Use Benes Network instead of arbiters for routing
+  val benes_network = Module(new BenesNetwork8x8Simple)
+  benes_network.io.in <> matrix_data_in
+
+  // Process routed data from Benes network
+  for (i <- 0 until mlu_readback_io.length) {
+    val routed_data = benes_network.io.out(i)
+    
+    // Extract channel information from routed data
+    val id = routed_data.bits.sourceId(Consts.L2_ID_LEN - 1, 0)
+    assert(id < 32.U, "id must be less than 32")
+    
+    // Connect to MLU readback interface
+    mlu_readback_io(i).valid := routed_data.valid
+    mlu_readback_io(i).data := routed_data.bits.data.data
+    mlu_readback_io(i).id := id
+    routed_data.ready := true.B
+  }
+
   // Connect each MLU Cacheline interface to its corresponding TileLink node
   for (i <- 0 until ame.io.MLU_L2_io.Cacheline_Read_io.length) {
     println(s"Connecting MLU Cacheline interface $i to TileLink node")
@@ -98,33 +108,19 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
     val edge = edges(i)
 
     // A channel - Get request handling
-    // tl.a.bits.user(MatrixKey):= 1.U
     mlu_read_io(i).ready := tl.a.ready && !write_inflight(i)
 
     when(mlu_read_io(i).valid) {
       val (legal, get_bits) = edge.Get(
-        fromSource = 0.U,
+        fromSource = Cat(i.U(channel_id_bits.W), mlu_read_io(i).id),
         toAddress = mlu_read_io(i).addr,
         lgSize = 6.U // 64 bytes = 2^6
       )
-      
+
       tl.a.valid := legal
       tl.a.bits := get_bits
-      tl.a.bits.user(MatrixKey):= 1.U  // Mark as Matrix request
-      tl.a.bits.user(AmeChannelKey) := i.U
-      tl.a.bits.user(AmeIndexKey) := mlu_read_io(i).id
-    }.otherwise {
-      tl.a.bits.user(MatrixKey):= 0.U
-      tl.a.valid := false.B
+      tl.a.bits.user(MatrixKey):= 1.U// Mark as Matrix request
     }
-
-    // D channel - Only used for Put responses
-    tl.d.ready := true.B
-
-    // We don't use B, C channels for this interface
-    tl.b.ready := true.B
-    tl.c.valid := false.B
-    tl.e.valid := false.B
   }
 
   // MSU_L2 <> TileLink
@@ -175,8 +171,6 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
       tl.a.valid := legal
       tl.a.bits := put_bits
       tl.a.bits.user(MatrixKey) := 1.U  // Mark as Matrix request
-      tl.a.bits.user(AmeChannelKey) := i.U
-      tl.a.bits.user(AmeIndexKey) := 0.U
 
       when (tl.a.fire) {
         write_inflight(i) := false.B
@@ -193,11 +187,29 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
       // printf(s"MSU_L2_WRITEACK: channel=$i\n")
     }
   }
-
-  /**
-    * Performance monitoring
-    */
-  val tick_data_stall = VecInit(io.matrix_data_in.map(x => x.valid && !x.ready))
-  val tick_data_stall_count = PopCount(tick_data_stall)
-  XSPerfAccumulate("AME_CYCLES_DATA_STALL", tick_data_stall_count)
 }
+
+/**
+ * Configuration for Benes Network routing
+ * This defines how sourceId bits are mapped to routing decisions
+ */
+object BenesRoutingConfig {
+  // Routing bit mapping for 8x8 Benes network
+  // sourceId[7:5] -> routing_bits[2:0]
+  def getRoutingBits(sourceId: UInt): UInt = {
+    sourceId(7, 5) // Use high 3 bits for routing
+  }
+  
+  // Alternative routing based on destination channel
+  def getRoutingBitsForDest(sourceId: UInt, destChannel: UInt): UInt = {
+    val sourceChannel = sourceId(7, 5)
+    val routingBits = Wire(UInt(3.W))
+    
+    // Simple XOR-based routing
+    routingBits(2) := sourceChannel(2) ^ destChannel(2)
+    routingBits(1) := sourceChannel(1) ^ destChannel(1)
+    routingBits(0) := sourceChannel(0) ^ destChannel(0)
+    
+    routingBits
+  }
+} 
