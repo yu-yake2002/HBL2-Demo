@@ -41,6 +41,7 @@ class AMEIO(implicit p: Parameters) extends Bundle {
   val sigDone = Output(Bool())
   val matrix_data_in = Vec(8, Flipped(DecoupledIO(new MatrixDataBundle())))  
   // val matrix_data_in = Vec(8, DecoupledIO(new MatrixDataBundle()))  // For M channel responses
+  val amuRelease = Decoupled(new AmuRelease_IO)
 }
 
 // AME Implementation
@@ -54,6 +55,7 @@ class AMEImp(outer: AMEModule)(implicit p: Parameters) extends LazyModuleImp(out
   ame.io.Uop_io <> io.Uop_io
   ame.io.writeAll <> io.writeAll
   ame.io.readAll <> io.readAll
+  ame.io.amuRelease_io <> io.amuRelease
   io.sigDone := ame.io.sigDone
 
   // M channel handling (for Get responses)
